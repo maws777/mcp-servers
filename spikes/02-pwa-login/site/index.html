@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Food spike</title>
+
+  <!-- PWA: the manifest makes "Add to Home Screen" install a standalone app
+       (no Safari UI). iOS also reads these apple-* tags. -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icon-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Food spike">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#1f6f4a">
+
+  <link rel="stylesheet" href="/app.css">
+  <!-- No inline script: the Content-Security-Policy (CloudFront response
+       headers) only allows scripts from this origin. -->
+  <script src="/config.js" defer></script>
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <main>
+    <h1>Food spike 2</h1>
+    <p class="muted">Connexion Cognito depuis la PWA installée.</p>
+
+    <section class="card">
+      <div class="row"><span>Mode d'affichage</span><strong id="mode">…</strong></div>
+      <div class="row"><span>Connecté</span><strong id="status">…</strong></div>
+      <div class="row"><span>sub</span><code id="sub">-</code></div>
+      <div class="row"><span>scope</span><code id="scope">-</code></div>
+      <div class="row"><span>aud</span><code id="aud">-</code></div>
+      <div class="row"><span>Expire à</span><code id="exp">-</code></div>
+    </section>
+
+    <section class="buttons">
+      <button id="login" type="button">Se connecter</button>
+      <button id="refresh" type="button">Rafraîchir le jeton</button>
+      <button id="logout" type="button">Se déconnecter</button>
+      <button id="clear" type="button" class="secondary">Effacer le journal</button>
+    </section>
+
+    <h2>Journal</h2>
+    <p class="muted">Chaque étape note le mode d'affichage : si le retour de
+      Cognito arrive en « browser », la redirection a fini dans Safari.</p>
+    <ol id="log"></ol>
+  </main>
+</body>
+</html>
