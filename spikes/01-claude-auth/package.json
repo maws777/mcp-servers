@@ -1,0 +1,20 @@
+{
+  "name": "spike-01-claude-auth",
+  "private": true,
+  "description": "Spike: claude.ai -> Cognito (pre-registered client) -> token validated by a Lambda MCP server",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "esbuild src/handler.ts --bundle --platform=node --target=node22 --format=cjs --minify --sourcemap --outfile=dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.4.0",
+    "aws-jwt-verify": "5.2.1",
+    "zod": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.0",
+    "@types/node": "^22.0.0",
+    "esbuild": "0.28.2",
+    "typescript": "^5.9.0"
+  }
+}

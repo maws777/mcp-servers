@@ -1,0 +1,16 @@
+# Node
+node_modules/
+dist/
+build/
+*.zip
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+backend.hcl
+*.tfplan
+tfplan
+crash.log
+crash.*.log

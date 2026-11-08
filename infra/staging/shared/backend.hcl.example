@@ -1,0 +1,4 @@
+# Copy to backend.hcl (gitignored) and fill in the staging account ID.
+# The bucket is created by landing-zone 00-bootstrap (output mcp_staging.state_bucket).
+bucket  = "mcp-tfstate-<staging-account-id>"
+profile = "staging-admin"
