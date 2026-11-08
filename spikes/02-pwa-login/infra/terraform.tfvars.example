@@ -1,0 +1,3 @@
+# Copy to terraform.tfvars (gitignored).
+account_id = "<staging-account-id>"
+mcp_url    = "<spike 1 output mcp_url>"

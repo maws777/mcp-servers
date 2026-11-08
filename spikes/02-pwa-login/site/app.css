@@ -1,0 +1,48 @@
+:root {
+  --bg: #f6f7f5;
+  --fg: #1d2420;
+  --muted: #5d6a63;
+  --card: #ffffff;
+  --border: #dde3df;
+  --accent: #1f6f4a;
+  --accent-fg: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121614;
+    --fg: #e6ebe8;
+    --muted: #9aa8a0;
+    --card: #1b211e;
+    --border: #2c3530;
+    --accent: #4fb684;
+    --accent-fg: #0d1210;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  /* Keep clear of the notch and home indicator in standalone mode. */
+  padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
+}
+main { max-width: 560px; margin: 0 auto; padding: 16px 0 32px; }
+h1 { margin: 8px 0 4px; font-size: 1.5rem; }
+h2 { margin: 24px 0 4px; font-size: 1.1rem; }
+.muted { color: var(--muted); margin: 0 0 12px; font-size: 0.9rem; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 8px 12px; }
+.row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.row:last-child { border-bottom: none; }
+.row span { color: var(--muted); flex-shrink: 0; }
+code { font-size: 0.8rem; overflow-wrap: anywhere; text-align: right; }
+.buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+button {
+  font: inherit; padding: 12px; border-radius: 10px; border: none;
+  background: var(--accent); color: var(--accent-fg); font-weight: 600;
+}
+button.secondary { background: transparent; color: var(--fg); border: 1px solid var(--border); }
+button:disabled { opacity: 0.4; }
+#log { padding-left: 20px; font-size: 0.85rem; }
+#log li { margin-bottom: 6px; overflow-wrap: anywhere; }
+#log .err { color: #c0392b; }
