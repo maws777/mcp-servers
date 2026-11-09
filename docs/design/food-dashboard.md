@@ -16,6 +16,7 @@ Claude stays the only way to write; the dashboard only reads.
 | How the page reaches its data | **Same origin.** CloudFront serves the site and forwards `/api/*` to the existing API Gateway. No CORS, CSP `connect-src` stays `'self'` + Cognito |
 | Token storage | Access token in memory, refresh token in `localStorage`, strict CSP. [ADR 0001](../decisions/0001-dashboard-token-storage.md) |
 | Split | **4a** dashboard, **4b** AI summaries, **4c** web push (alarms, evening nudge). One PR each, each usable on its own |
+| Summaries (4b) | French, short (2–3 sentences + one tip), on open when the day changed + nightly at 23:30 Paris time, 20 per day max |
 
 ## 2. Phase 4a: the dashboard
 
@@ -117,22 +118,77 @@ S3 cents, the certificate free, alias records free.
 | Clickjacking | `frame-ancestors 'none'` |
 | Abuse of `/api` | API Gateway throttling (same stage limits as `/mcp`); read-only routes, no Bedrock in 4a |
 
-## 3. Phase 4b: AI summaries (outline)
+## 3. Phase 4b: AI summaries
 
-- `GET /api/summary?date=` returns the cached `SUMMARY#<date>` at once. If
-  the hash of that day's entries changed since, the dashboard Lambda starts
-  the summary Lambda asynchronously (`lambda:InvokeFunction`, allowed by the
-  boundary since landing-zone PR #21); the page polls once.
-- Summary Lambda, its own role: read the day, write `SUMMARY#` / `NOTE#`,
-  `bedrock:InvokeModel` on the `eu.anthropic.claude-haiku-5-5` profile and
-  its six EU destinations (allowed by landing-zone ADR 0014).
-- Nightly EventBridge Scheduler run in `Europe/Paris`: the "day closed"
-  summary and the one-line diary note.
-- Prompt injection: meal text goes in as quoted data, the model has no
-  tools, its output is length-capped and rendered as text.
-- Cost control: regenerate only on change, a per-user daily cap, the
-  budget alarm. Price per summary to measure on real calls before enabling
-  the nightly run.
+Decided 2026-11-09: **French**, **short** (2–3 sentences about the day + one
+concrete tip), generated **on open when the day changed, plus nightly**.
+This is the app's one deliberate AI call; Claude (the MCP client) stays the
+estimator, the summary model only comments on numbers the server computed.
+
+```
+page opens ─► GET /api/summary?date=        (dashboard Lambda)
+               ├─ cached SUMMARY#<date>, hash of the day's entries matches → shown
+               └─ missing or stale → async invoke ─► summary Lambda ─► Bedrock (Haiku, eu. profile)
+                  the page asks again once, ~5 s later        └─► writes SUMMARY#<date>
+23:30 Europe/Paris ─► EventBridge Scheduler ─► summary Lambda (mode "close day")
+                                               └─► final SUMMARY#<date> + NOTE#<date>
+```
+
+### Pieces
+
+- **Table `mcp-food-<env>-summaries`** (on demand, ~free), separate from the
+  journal: `PK = USER#<sub>`, `SK = SUMMARY#<date> | NOTE#<date> |
+  QUOTA#<date>`, plus `PK = USERS`, `SK = USER#<sub>` (who to summarize at
+  night: no Scan needed). TTL removes quota items.
+- **Summary Lambda** `mcp-food-<env>-summary`, its own role:
+  `GetItem`/`Query` on the food table (**read only**), `GetItem`/`Query`/
+  `PutItem`/`UpdateItem` on the summaries table, and `bedrock:InvokeModel`
+  on the `eu.anthropic.claude-haiku-5-5` inference profile and that model in
+  the six EU regions (landing-zone ADR 0014). This is the component that
+  puts untrusted text (meal descriptions) in front of a model, so it's the
+  one that can't change the journal: a successful prompt injection could at
+  worst write an odd summary, shown only to the same user.
+- **Dashboard Lambda** gains `GetItem` on the summaries table and
+  `lambda:InvokeFunction` on the summary Lambda only (async, `Event`).
+- **Schedule** `mcp-food-<env>-close-day`: `cron(30 23 * * ? *)` in
+  `Europe/Paris`, its own role allowed to invoke the summary Lambda only.
+- **Model call:** Bedrock Converse, `eu.anthropic.claude-haiku-5-5`, one
+  forced tool `write_summary` whose input schema is the output
+  (`resume` ≤ 400 characters, `conseil` ≤ 200, `note` ≤ 120 at night).
+  Forcing the tool gives structured output to validate; the "tool" is never
+  executed and the model has no other tools. Lengths checked again in code,
+  anything invalid is dropped (the previous summary stays).
+
+### What the model sees ("memory")
+
+Computed in code, never by the model: today's totals vs targets, the 7- and
+30-day averages with how many days they cover, the logging streak, open
+batches with their age (leftover nudges), and the last ~14 diary notes. The
+meals themselves go in as a JSON block (description, time, kcal) inside a
+clearly delimited section, with the system prompt saying that anything in
+it is data, never instructions.
+
+Tone rules in the system prompt: French, warm and playful, celebrate big
+days, **never** shame, **never** suggest eating less to compensate, no
+medical advice, no numbers the server didn't provide.
+
+### Cost and abuse
+
+- Regenerate only when the hash of the day's entries changed; the nightly
+  run once per active user.
+- **20 generations per user per day**, enforced by the summary Lambda itself
+  (conditional counter `QUOTA#<date>`), so even a buggy or abused dashboard
+  can't exceed it. API Gateway throttling and the budget alarm stay behind.
+- Price per call: measured on the first real calls (input and output
+  tokens are logged) before the schedule is enabled; expected to be cents a
+  month.
+- Logs: token counts, latency, outcome. Never the prompt, never the output.
+
+### Before building
+
+- The staging account's first Bedrock call (2026-11-09) answered "account
+  being verified" (AWS's automatic check, < 2 h): retry the test call, then
+  check `agreementAvailability` is `AVAILABLE`.
 
 ## 4. Phase 4c: web push (outline)
 
