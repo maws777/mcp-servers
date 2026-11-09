@@ -128,7 +128,7 @@ resource "aws_cognito_managed_login_branding" "claude" {
 # Linux 0644); .gitattributes fixes the line endings.
 data "archive_file" "lambda" {
   type             = "zip"
-  source_dir       = "${path.module}/../dist"
+  source_dir       = "${path.module}/../dist/mcp"
   output_path      = "${path.module}/../build/lambda.zip"
   output_file_mode = "0644"
 }

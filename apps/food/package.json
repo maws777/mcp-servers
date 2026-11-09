@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs && node scripts/build-web.mjs",
+    "check-web": "node scripts/check-web.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "3.1164.0",

@@ -10,6 +10,7 @@ import { DATE_RE, daysBetween, resolveInstant, timeProblem, today } from "../dom
 import { BatchChanged, deletePortionEntry } from "../store/batches";
 import { IdempotencyConflict, createEntry, deleteEntry, getRecord, listEntries, updateEntry, type Entry } from "../store/entries";
 import { getProfile } from "../store/profile";
+import { daySummary } from "../views";
 import { fail, ok } from "./result";
 
 export interface ToolContext {
@@ -216,22 +217,6 @@ export function registerJournalTools(server: McpServer, ctx: ToolContext) {
       annotations: { readOnlyHint: true },
       scopeChallenge: canRead,
     },
-    async (args) => {
-      const profile = await getProfile(ctx.sub);
-      const day = args.date ?? today(profile.time_zone);
-      const entries = await listEntries(ctx.sub, day, day);
-      const totals = entries.reduce((acc, e) => addNutrition(acc, e.totals), ZERO);
-      const byMeal: Record<string, Nutrition> = {};
-      for (const e of entries) {
-        const key = e.meal ?? "unspecified";
-        byMeal[key] = addNutrition(byMeal[key] ?? ZERO, e.totals);
-      }
-      const remaining = profile.targets
-        ? Object.fromEntries(
-            Object.entries(profile.targets).map(([k, target]) => [k, Math.round(((target ?? 0) - totals[k as keyof Nutrition]) * 10) / 10]),
-          )
-        : null;
-      return ok({ date: day, entries_count: entries.length, totals, by_meal: byMeal, targets: profile.targets ?? null, remaining_to_target: remaining });
-    },
+    async (args) => ok((await daySummary(ctx.sub, args.date)).summary),
   );
 }
