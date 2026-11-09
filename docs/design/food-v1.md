@@ -27,8 +27,13 @@ stored values instead of being re-estimated.
    with the journal tools, its table and infrastructure, custom domain.
    Deployed to staging locally, connected in claude.ai, used daily.
 2. **Phase 2:** meal prep (with pots), saved foods, targets, trends, weight.
-3. **Phase 3:** CI (GitHub Actions, the landing zone's `ci/mcp-ci-*` roles).
-4. **Phase 4:** dashboard (S3 + CloudFront PWA) and AI summaries (Bedrock).
+3. **Phase 3:** CI (GitHub Actions, the landing zone's `ci/mcp-ci-*` roles):
+   unit + store tests (DynamoDB Local) on every PR and push, plan on PRs,
+   deploy to staging on `main`, smoke test from outside. Still a zip (see
+   section 5). Workflow: `.github/workflows/food.yml`.
+4. **Phase 4:** dashboard (S3 + CloudFront PWA) and AI summaries (Bedrock),
+   plus alarms, notified as web push on the iPhone app (alarm → Lambda →
+   push; CloudWatch alarms can call a Lambda directly, no SNS or email).
    Needs two landing-zone PRs first: CloudFront/S3 permissions for the CI
    apply role, and the Bedrock region exception in the region SCP.
 5. **Phase 5:** prod (same module, tagged releases, approval gate).
@@ -261,12 +266,20 @@ claude.ai ──HTTPS──> food.mcp.staging.lab.michaelteplov.com
 - **Custom domain from day one.** The spikes showed the MCP URL is the
   Cognito resource server identifier and the prefix of every scope; changing
   it later would break every client's sign-in.
-- **Packaging: zip now, container image with CI (phase 3).** The server
-  code is written against web-standard `Request`/`Response` (only a thin
-  entry adapts API Gateway events), so moving to a container image with the
-  Lambda Web Adapter, and to Fargate for the optional demo stack, changes the
-  entry point, not the server. Building arm64 images belongs in CI (GitHub's
-  arm64 runners), not on my Windows laptop. ECR repository `mcp/food` then.
+- **Packaging: zip, until the Fargate demo is decided.** The container image
+  was planned for phase 3 only so one artifact could also run on Fargate,
+  and Fargate is an optional stretch goal. Decided 2026-11-09: keep the zip
+  that works (an image would add ECR, a second stack and a forced
+  replacement of the function, for nothing today). The server code is
+  written against web-standard `Request`/`Response` (only a thin entry
+  adapts API Gateway events), so a later move to an image with the Lambda
+  Web Adapter changes the entry point, not the server.
+- **Reproducible zip.** Terraform redeploys when the zip's hash changes, so
+  the same source must give the same bytes on Windows and on the Linux
+  runners: `.gitattributes` forces LF line endings, `archive_file` pins the
+  file mode, and the provider already fixes the timestamps. (Found when the
+  first plan after the merge wanted to redeploy identical code: one file had
+  CRLF line endings, embedded in the source map.)
 - **Auth (ADR)**, from spike 1: shared pool `mcp-staging`; resource server
   identifier = `https://food.mcp.staging.lab.michaelteplov.com/mcp`, scopes
   `<that>/food:read` and `<that>/food:write`; one pre-registered public client
@@ -298,9 +311,8 @@ mcp-servers/
 │       │   ├── domain/    # pure logic: nutrition checks, batch math, dates
 │       │   ├── store/     # DynamoDB access
 │       │   └── server.ts  # McpServer factory, instructions
-│       ├── test/          # unit tests (domain), store tests on DynamoDB Local
-│       ├── Dockerfile
-│       └── infra/         # table, ECR, Lambda, API, domain, Cognito resource server + clients
+│       ├── test/          # unit tests (domain), test/store/ on DynamoDB Local
+│       └── infra/         # table, Lambda, API, domain, Cognito resource server + clients
 ├── infra/staging/shared/  # user pool (exists)
 ├── docs/{design,decisions,explained}/
 └── spikes/                # done, kept for reference

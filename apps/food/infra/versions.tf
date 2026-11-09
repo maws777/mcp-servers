@@ -14,8 +14,10 @@ terraform {
 
   # State in the workload account's bucket (landing-zone ADR 0013):
   #   terraform init -backend-config=../../../infra/staging/shared/backend.hcl
+  # The key must end in /terraform.tfstate: the CI apply role may write only
+  # those. No environment in the name; each environment has its own bucket.
   backend "s3" {
-    key          = "apps/food/staging.tfstate"
+    key          = "apps/food/terraform.tfstate"
     region       = "eu-west-3"
     encrypt      = true
     use_lockfile = true
