@@ -31,11 +31,11 @@ stored values instead of being re-estimated.
    unit + store tests (DynamoDB Local) on every PR and push, plan on PRs,
    deploy to staging on `main`, smoke test from outside. Still a zip (see
    section 5). Workflow: `.github/workflows/food.yml`.
-4. **Phase 4:** dashboard (S3 + CloudFront PWA) and AI summaries (Bedrock),
-   plus alarms, notified as web push on the iPhone app (alarm → Lambda →
-   push; CloudWatch alarms can call a Lambda directly, no SNS or email).
-   Needs two landing-zone PRs first: CloudFront/S3 permissions for the CI
-   apply role, and the Bedrock region exception in the region SCP.
+4. **Phase 4:** design in [`food-dashboard.md`](food-dashboard.md). 4a the
+   read-only dashboard (S3 + CloudFront PWA), 4b AI summaries (Bedrock),
+   4c web push for alarms and an evening nudge (alarm → Lambda → push, no
+   SNS or email). Platform prerequisites done: landing-zone PR #21
+   (CloudFront/S3/Scheduler for CI, Bedrock EU exception, ADR 0014).
 5. **Phase 5:** prod (same module, tagged releases, approval gate).
 
 ## 3. Tools
@@ -323,8 +323,8 @@ the batch math is tested in milliseconds.
 
 ## 7. Open questions
 
-- Dashboard token storage (localStorage + strict CSP, or memory + refresh
-  token only): decided in phase 4.
+- ~~Dashboard token storage~~: decided 2026-11-09, access token in memory +
+  refresh token in localStorage ([ADR 0001](../decisions/0001-dashboard-token-storage.md)).
 - Claude Code as a second client (needs a `localhost` callback client): when
   wanted.
 - Prod account: phase 5.
