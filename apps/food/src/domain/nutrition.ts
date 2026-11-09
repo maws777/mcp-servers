@@ -21,8 +21,19 @@ export interface Limits {
   alcohol: number;
 }
 
-/** Per item of a meal. (Batch items get wider limits in phase 2: 2 kg of rice is 7,000 kcal.) */
+/** Per item of a meal. */
 export const ENTRY_LIMITS: Limits = { kcal: 5000, macro: 500, fiber: 150, alcohol: 200 };
+
+/** Per ingredient of a cooked batch: 2 kg of raw rice is about 7,200 kcal, 1 l of oil 8,800. */
+export const BATCH_ITEM_LIMITS: Limits = { kcal: 10_000, macro: 2_000, fiber: 500, alcohol: 1_000 };
+
+/** Whole batch, after summing its ingredients. */
+export const MAX_BATCH_KCAL = 30_000;
+
+/** Nutrition without a name: a saved food's values per serving. */
+export function nutritionSchema(limits: Limits) {
+  return itemSchema(limits).omit({ name: true, quantity: true });
+}
 
 const amount = (max: number, what: string) =>
   z.number().min(0, `${what} can't be negative`).max(max, `${what} over ${max} looks wrong`);
@@ -95,3 +106,15 @@ export function addNutrition(a: Nutrition, b: Nutrition): Nutrition {
 }
 
 export const ZERO: Nutrition = { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0, fiber_g: 0, alcohol_g: 0 };
+
+/** Lowercase, no accents, single spaces: "Bœuf  Haché" and "boeuf hache" find each other. */
+export function normalizeName(name: string): string {
+  return name
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/œ/gi, "oe")
+    .replace(/æ/gi, "ae")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+}

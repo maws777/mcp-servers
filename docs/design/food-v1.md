@@ -163,6 +163,14 @@ How `eat_from_batch` works:
    it (fraction × new totals), in the same transaction: it's the same pot, so
    the correction applies to what I already ate. (A transaction holds up to
    100 writes; a batch is eaten a handful of times.)
+7. A portion entry's content can't be edited directly (it comes from the
+   batch): `update_entry` only moves it in time or changes its meal.
+   Deleting it puts the portion back in the pot (reopening the batch if that
+   portion had finished it), unless the batch was discarded.
+8. Every change to a batch is conditional on the value just read
+   (`remaining`, `updated_at`): two requests can't both take the last third.
+   The loser gets "batch changed", and `eat_from_batch` retries once by
+   itself.
 
 DynamoDB stores numbers as exact decimals (up to 38 digits), not binary
 floats, so `1 - 1/3 - 1/3` doesn't drift. Fractions are kept to 4 decimals.

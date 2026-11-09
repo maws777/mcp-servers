@@ -7,7 +7,8 @@ import { requireScopes, type McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { ENTRY_LIMITS, ZERO, addNutrition, itemProblems, itemSchema, sumItems, type Nutrition } from "../domain/nutrition";
 import { DATE_RE, daysBetween, resolveInstant, timeProblem, today } from "../domain/time";
-import { IdempotencyConflict, createEntry, deleteEntry, listEntries, updateEntry, type Entry } from "../store/entries";
+import { BatchChanged, deletePortionEntry } from "../store/batches";
+import { IdempotencyConflict, createEntry, deleteEntry, getRecord, listEntries, updateEntry, type Entry } from "../store/entries";
 import { getProfile } from "../store/profile";
 import { fail, ok } from "./result";
 
@@ -18,6 +19,14 @@ export interface ToolContext {
 }
 
 const MAX_ENTRY_KCAL = 8000;
+
+// Shared with the other tool files.
+export const idempotencyKey = z
+  .string()
+  .min(8)
+  .max(64)
+  .describe("A fresh UUID per action; reuse it only to retry the very same call");
+export { resolveTime };
 
 const items = z
   .array(itemSchema(ENTRY_LIMITS))
@@ -73,7 +82,7 @@ export function registerJournalTools(server: McpServer, ctx: ToolContext) {
         items,
         eaten_at: eatenAt.optional(),
         meal: meal.optional(),
-        idempotency_key: z.string().min(8).max(64),
+        idempotency_key: idempotencyKey,
       }),
       scopeChallenge: canWrite,
     },
@@ -139,6 +148,14 @@ export function registerJournalTools(server: McpServer, ctx: ToolContext) {
       scopeChallenge: canWrite,
     },
     async (args) => {
+      const record = await getRecord(ctx.sub, args.entry_id);
+      if (!record || record.deleted_at) return fail(`no entry ${args.entry_id}`);
+      if (record.batch_id && (args.items || args.description)) {
+        return fail(
+          "this entry is a portion of a meal-prep batch: its content comes from the batch. " +
+            "Fix the recipe with update_batch (this portion is recomputed), or delete the entry and use eat_from_batch again for a different amount.",
+        );
+      }
       let totals: Nutrition | undefined;
       if (args.items) {
         const checked = checkItems(args.items);
@@ -166,12 +183,25 @@ export function registerJournalTools(server: McpServer, ctx: ToolContext) {
     "delete_entry",
     {
       title: "Delete entry",
-      description: "Delete a logged entry (hidden from every view; recoverable by the owner).",
+      description:
+        "Delete a logged entry (hidden from every view; recoverable by the owner). " +
+        "If it was a portion of a meal-prep batch, the portion goes back into the batch.",
       inputSchema: z.object({ entry_id: entryId }),
       annotations: { destructiveHint: true, idempotentHint: true },
       scopeChallenge: canWrite,
     },
     async (args) => {
+      const record = await getRecord(ctx.sub, args.entry_id);
+      if (!record) return fail(`no entry ${args.entry_id}`);
+      if (record.batch_id) {
+        try {
+          await deletePortionEntry(ctx.sub, record);
+        } catch (e) {
+          if (e instanceof BatchChanged) return fail(e.message);
+          throw e;
+        }
+        return ok({ deleted: args.entry_id, returned_to_batch: record.batch_id });
+      }
       const done = await deleteEntry(ctx.sub, args.entry_id);
       return done ? ok({ deleted: args.entry_id }) : fail(`no entry ${args.entry_id}`);
     },

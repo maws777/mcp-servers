@@ -13,7 +13,9 @@ import { GetCommand, QueryCommand, TransactWriteCommand, UpdateCommand } from "@
 import { ulid } from "ulid";
 import type { Item, Nutrition } from "../domain/nutrition";
 import { localParts } from "../domain/time";
-import { TABLE, doc, fingerprint, firstConditionFailed, idemExpiry, keys } from "./db";
+import { TABLE, doc, keys, writeOnce, type TransactItems } from "./db";
+
+export { IdempotencyConflict } from "./db";
 
 export type Meal = "breakfast" | "lunch" | "dinner" | "snack";
 
@@ -28,16 +30,47 @@ export interface Entry {
   local_time: string;
   created_at: string;
   updated_at: string;
+  /** Set when the entry is a portion of a meal-prep batch. */
+  batch_id?: string;
+  /** That portion, in ten-thousandths of the dish (domain/batch.ts). */
+  batch_units?: number;
 }
 
-interface EntryRecord extends Entry {
+export interface EntryRecord extends Entry {
   PK: string;
   SK: string;
   type: "entry";
   deleted_at?: string;
 }
 
-function toEntry(r: EntryRecord): Entry {
+/** A new entry record and its pointer, for callers that write them inside their own transaction. */
+export function newEntryRecords(sub: string, input: NewEntry & { batch_id?: string; batch_units?: number }, timeZone: string) {
+  const now = new Date().toISOString();
+  const id = ulid();
+  const { date, time } = localParts(input.eatenAt, timeZone);
+  const sk = keys.entry(date, time, id);
+  const record: EntryRecord = {
+    PK: keys.pk(sub),
+    SK: sk,
+    type: "entry",
+    entry_id: id,
+    description: input.description,
+    meal: input.meal,
+    items: input.items,
+    totals: input.totals,
+    eaten_at: input.eatenAt.toISOString(),
+    local_date: date,
+    local_time: time,
+    created_at: now,
+    updated_at: now,
+    batch_id: input.batch_id,
+    batch_units: input.batch_units,
+  };
+  const ref = { PK: keys.pk(sub), SK: keys.entryRef(id), type: "entryref", sk };
+  return { record, ref };
+}
+
+export function toEntry(r: EntryRecord): Entry {
   const { PK: _pk, SK: _sk, type: _t, deleted_at: _d, ...entry } = r;
   return entry;
 }
@@ -50,7 +83,6 @@ export interface NewEntry {
   eatenAt: Date;
 }
 
-export class IdempotencyConflict extends Error {}
 
 /**
  * Creates an entry, exactly once per idempotency key.
@@ -67,58 +99,20 @@ export async function createEntry(
   timeZone: string,
   idempotency: { key: string; request: unknown },
 ): Promise<{ entry: Entry; replayed: boolean }> {
-  const idempotencyKey = idempotency.key;
-  const pk = keys.pk(sub);
-  const now = new Date().toISOString();
-  const id = ulid();
-  const { date, time } = localParts(input.eatenAt, timeZone);
-  const entry: Entry = {
-    entry_id: id,
-    description: input.description,
-    meal: input.meal,
-    items: input.items,
-    totals: input.totals,
-    eaten_at: input.eatenAt.toISOString(),
-    local_date: date,
-    local_time: time,
-    created_at: now,
-    updated_at: now,
-  };
-  const sk = keys.entry(date, time, id);
-  // Fingerprint of the request as sent (not of the resolved time: without
-  // eaten_at, "now" differs between a call and its retry).
-  const print = fingerprint(idempotency.request);
-
-  try {
-    await doc.send(
-      new TransactWriteCommand({
-        TransactItems: [
-          {
-            Put: {
-              TableName: TABLE,
-              Item: { PK: pk, SK: keys.idem(idempotencyKey), type: "idem", fingerprint: print, result: { entry_id: id }, expires_at: idemExpiry() },
-              ConditionExpression: "attribute_not_exists(PK)",
-            },
-          },
-          { Put: { TableName: TABLE, Item: { PK: pk, SK: sk, type: "entry", ...entry } satisfies EntryRecord } },
-          { Put: { TableName: TABLE, Item: { PK: pk, SK: keys.entryRef(id), type: "entryref", sk } } },
-        ],
-      }),
-    );
-    return { entry, replayed: false };
-  } catch (e) {
-    if (!firstConditionFailed(e)) throw e;
-    const prior = await doc.send(new GetCommand({ TableName: TABLE, Key: { PK: pk, SK: keys.idem(idempotencyKey) } }));
-    if (prior.Item?.fingerprint !== print) {
-      throw new IdempotencyConflict("this idempotency_key was already used for a different entry; generate a new one");
-    }
-    const existing = await getEntry(sub, prior.Item.result.entry_id);
-    if (!existing) throw new Error("the entry logged with this idempotency_key no longer exists");
-    return { entry: existing, replayed: true };
-  }
+  const { record, ref } = newEntryRecords(sub, input, timeZone);
+  // The fingerprint is of the request as sent, not of the resolved time:
+  // without eaten_at, "now" differs between a call and its retry.
+  const outcome = await writeOnce(sub, idempotency, { entry_id: record.entry_id }, [
+    { Put: { TableName: TABLE, Item: record } },
+    { Put: { TableName: TABLE, Item: ref } },
+  ]);
+  if (!outcome.replayed) return { entry: toEntry(record), replayed: false };
+  const existing = await getEntry(sub, outcome.result.entry_id);
+  if (!existing) throw new Error("the entry logged with this idempotency_key no longer exists");
+  return { entry: existing, replayed: true };
 }
 
-async function getRecord(sub: string, id: string): Promise<EntryRecord | undefined> {
+export async function getRecord(sub: string, id: string): Promise<EntryRecord | undefined> {
   const pk = keys.pk(sub);
   const ref = await doc.send(new GetCommand({ TableName: TABLE, Key: { PK: pk, SK: keys.entryRef(id) } }));
   if (!ref.Item) return undefined;
