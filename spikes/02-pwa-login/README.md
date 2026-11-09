@@ -10,7 +10,7 @@ in an overlay, and some iOS versions finished the redirect in Safari, which
 doesn't share storage with the home-screen app. The page logs the display
 mode (`standalone` / `browser`) at every step.
 
-Throwaway: destroyed once answered, together with spike 1.
+**Status: answered, stack destroyed 2026-11-09** (with spike 1).
 
 ## What it deploys (staging)
 
@@ -65,9 +65,10 @@ The code exchange succeeding with the verifier means the callback ran in a
 context that could read the localStorage written when the login started: the
 iOS pitfall (redirect finishing in Safari, PKCE state lost) did not happen.
 
-Not yet verified: reopening the app after the 1-hour access token expiry
-(silent refresh on open). CloudTrail will show it as a `refresh_token`
-`Token_POST` from this client.
+Rotation chain verified 2026-11-09: two refreshes in a row, the second with
+the refresh token returned by the first, both 200. Not observed: the page's
+own "refresh on open when expired" trigger (app code, to test in the real
+dashboard).
 
 Consequences for the real dashboard:
 

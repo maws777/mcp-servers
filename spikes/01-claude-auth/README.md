@@ -5,7 +5,7 @@ authorization server is a Cognito user pool, using a pre-registered public
 client, and can the server validate Cognito's access tokens (which have no
 `aud` claim)?
 
-Throwaway: destroyed once answered. What survives is the user pool
+**Status: answered, stack destroyed 2026-11-09.** What survives is the user pool
 (`infra/staging/shared`) and the token-validation approach.
 
 ## What it deploys (staging account)
@@ -75,7 +75,10 @@ What the logs and probes showed:
    served both.
 6. Unknown paths are answered 404 by API Gateway without invoking the Lambda.
 
-Not yet verified: the refresh after the 1-hour access token expiry.
+Refresh verified 2026-11-09: 84 minutes after sign-in (access token
+expired), claude.ai renewed its token on its own (`Token_POST`,
+`grant_type=refresh_token`, 200, user agent `python-httpx`, rotation enabled)
+and the following tool calls validated.
 
 Consequences for the real server:
 
