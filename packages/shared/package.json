@@ -1,0 +1,14 @@
+{
+  "name": "@mcp/shared",
+  "private": true,
+  "description": "Shared by every MCP server in this repo: token check, API Gateway adapter, logging",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.4.0",
+    "aws-jwt-verify": "5.2.1"
+  }
+}

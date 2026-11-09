@@ -1,0 +1,3 @@
+# Copy to terraform.tfvars (gitignored).
+account_id         = "<staging-account-id>"
+network_account_id = "<network-account-id>"
