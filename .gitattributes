@@ -1,0 +1,3 @@
+# Same bytes on Windows and on the Linux CI runners: the Lambda zip's hash
+# (and so Terraform's plan) must not depend on who built it.
+* text=auto eol=lf

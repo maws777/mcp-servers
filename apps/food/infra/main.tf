@@ -121,10 +121,16 @@ resource "aws_cognito_managed_login_branding" "claude" {
 # --- Lambda ------------------------------------------------------------------------
 
 # The bundle and its source map (readable stack traces in the logs).
+#
+# The zip's hash decides whether Terraform redeploys the code, so the same
+# source must give the same bytes on any machine. The provider already fixes
+# the timestamps; output_file_mode fixes the permissions (Windows writes 0666,
+# Linux 0644); .gitattributes fixes the line endings.
 data "archive_file" "lambda" {
-  type        = "zip"
-  source_dir  = "${path.module}/../dist"
-  output_path = "${path.module}/../build/lambda.zip"
+  type             = "zip"
+  source_dir       = "${path.module}/../dist"
+  output_path      = "${path.module}/../build/lambda.zip"
+  output_file_mode = "0644"
 }
 
 data "aws_iam_policy_document" "assume_lambda" {

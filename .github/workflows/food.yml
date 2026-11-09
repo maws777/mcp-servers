@@ -1,0 +1,220 @@
+# The food MCP server: test, plan, deploy to staging.
+#
+#   pull request -> test, then plan   (ci/mcp-ci-plan: reads configuration only)
+#   push to main -> test, then deploy (ci/mcp-ci-apply, only in jobs that declare
+#                                      `environment: staging`, which GitHub only
+#                                      allows for main)
+#
+# The roles live in the landing zone (modules/workload-ci, ADR 0013); their
+# trust policies check the OIDC token's `sub`, which is how a pull request can
+# never get the apply role, even by editing this file.
+#
+# No reviewer on staging: merging is the approval, and the PR showed the plan.
+# Prod (phase 5) gets a required reviewer and a plan-digest check like the
+# landing zone's workflow.
+
+name: food
+
+on:
+  pull_request:
+    paths: &paths
+      - "apps/food/**"
+      - "packages/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.base.json"
+      - "vitest.config.ts"
+      - ".github/workflows/food.yml"
+  push:
+    branches: [main]
+    paths: *paths
+
+# Default for every job: read the repo, nothing else. Jobs that talk to AWS add
+# id-token: write, which is what lets them ask GitHub for an OIDC token.
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: eu-west-3
+  TF_IN_AUTOMATION: "1"
+  TF_INPUT: "0"
+  TF_VAR_account_id: ${{ vars.STAGING_ACCOUNT_ID }}
+  TF_VAR_network_account_id: ${{ vars.NETWORK_ACCOUNT_ID }}
+  # Locally the providers use Identity Center profiles; here the credentials
+  # come from OIDC, and an empty profile means "use the environment".
+  TF_VAR_aws_profile: ""
+  TF_VAR_network_profile: ""
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # DynamoDB Local next to the job, on localhost:8000, for the store tests.
+    # Pinned by digest: a tag can be moved, a digest can't.
+    services:
+      dynamodb:
+        image: amazon/dynamodb-local:3.3.2@sha256:6ada631ec7aa5fc83446855eb17233e3dad184fec47477e8140c6c569cfe0c86
+        ports: ["8000:8000"]
+    steps:
+      # Actions are pinned to commit SHAs, not tags, for the same reason.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:store
+
+  plan:
+    if: github.event_name == 'pull_request'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      # The provider for the hosted zone chains into the network account's DNS
+      # role; the plan variant can only read records.
+      TF_VAR_network_role_arn: arn:aws:iam::${{ vars.NETWORK_ACCOUNT_ID }}:role/ci/mcp-dns-staging-plan
+    defaults:
+      run:
+        working-directory: apps/food/infra
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        working-directory: .
+      # Terraform zips dist/ itself (archive_file), so the plan sees the real
+      # code hash: a code change shows up as an update to the function.
+      - run: npm run build -w apps/food
+        working-directory: .
+
+      # Prints the claims AWS will check, never the token itself. If the role
+      # refuses the token, compare these with the trust policy.
+      - name: Show OIDC claims
+        run: |
+          token=$(curl -sSf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r .value)
+          payload=$(printf '%s' "$token" | cut -d. -f2 | tr '_-' '/+')
+          while [ $(( ${#payload} % 4 )) -ne 0 ]; do payload="$payload="; done
+          printf '%s' "$payload" | base64 -d | jq '{sub, aud, ref, event_name, environment}'
+
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.STAGING_ACCOUNT_ID }}:role/ci/mcp-ci-plan
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.14.3
+          terraform_wrapper: false
+
+      - run: terraform fmt -check
+      # Locally the bucket comes from a gitignored backend.hcl; here from the
+      # account ID. Same bucket, same key: the state the laptop used.
+      - run: terraform init -backend-config="bucket=mcp-tfstate-${{ vars.STAGING_ACCOUNT_ID }}"
+      - run: terraform validate -no-color
+      - run: terraform plan -no-color -lock-timeout=5m -out=tfplan
+
+      # The plan, on the run page linked from the PR's checks.
+      - name: Plan summary
+        run: |
+          terraform show -no-color tfplan > plan.txt
+          {
+            echo "### food (staging): $(grep -E '^(Plan:|No changes\.)' plan.txt || echo 'see log')"
+            echo "<details><summary>Full plan</summary>"
+            echo
+            echo '```'
+            cat plan.txt
+            echo '```'
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    # What the apply role's trust policy checks for: the OIDC `sub` becomes
+    # repo:...:environment:staging. The environment only accepts main.
+    environment:
+      name: staging
+      url: https://food.mcp.staging.lab.michaelteplov.com/mcp
+    # Never two deploys at once; queue rather than cancel (cancelling an apply
+    # halfway leaves a stale lock and a half-applied change).
+    concurrency:
+      group: food-staging
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TF_VAR_network_role_arn: arn:aws:iam::${{ vars.NETWORK_ACCOUNT_ID }}:role/ci/mcp-dns-staging-apply
+    defaults:
+      run:
+        working-directory: apps/food/infra
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        working-directory: .
+      - run: npm run build -w apps/food
+        working-directory: .
+
+      - name: Show OIDC claims
+        run: |
+          token=$(curl -sSf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r .value)
+          payload=$(printf '%s' "$token" | cut -d. -f2 | tr '_-' '/+')
+          while [ $(( ${#payload} % 4 )) -ne 0 ]; do payload="$payload="; done
+          printf '%s' "$payload" | base64 -d | jq '{sub, aud, ref, event_name, environment}'
+
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.STAGING_ACCOUNT_ID }}:role/ci/mcp-ci-apply
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.14.3
+          terraform_wrapper: false
+
+      - run: terraform init -backend-config="bucket=mcp-tfstate-${{ vars.STAGING_ACCOUNT_ID }}"
+      # Plan and apply the same saved file, so exactly what's printed is what runs.
+      - run: terraform plan -no-color -lock-timeout=5m -out=tfplan
+      - name: Plan summary
+        run: |
+          terraform show -no-color tfplan > plan.txt
+          {
+            echo "### food (staging): $(grep -E '^(Plan:|No changes\.)' plan.txt || echo 'see log')"
+            echo "<details open><summary>Full plan</summary>"
+            echo
+            echo '```'
+            cat plan.txt
+            echo '```'
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - run: terraform apply -no-color -lock-timeout=5m tfplan
+
+      # Checks the deployed server from outside, like a client, with no token:
+      # CI may not invoke the function or read the table (ADR 0013), and
+      # doesn't need to. The metadata must name the right resource, and the
+      # MCP endpoint must refuse an anonymous call.
+      - name: Smoke test
+        run: |
+          url=$(terraform output -raw mcp_url)
+          host=${url%/mcp}
+          for i in 1 2 3 4 5; do
+            curl -sSf "$host/.well-known/oauth-protected-resource/mcp" -o prm.json && break
+            sleep 3
+          done
+          jq -e --arg url "$url" '.resource == $url' prm.json
+          status=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$url" -H 'content-type: application/json' -d '{}')
+          echo "POST /mcp without a token: $status"
+          test "$status" = 401

@@ -9,7 +9,8 @@
   ],
   "scripts": {
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "vitest run",
+    "test": "vitest run --project unit",
+    "test:store": "vitest run --project store",
     "build": "npm run build --workspaces --if-present"
   },
   "devDependencies": {
