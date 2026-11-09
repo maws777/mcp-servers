@@ -8,6 +8,11 @@ output "claude_client_id" {
   value       = aws_cognito_user_pool_client.claude.id
 }
 
+output "dashboard_url" {
+  description = "The dashboard: open in Safari on the iPhone, then Share > Add to Home Screen."
+  value       = "${local.site_url}/"
+}
+
 output "table_name" {
   value = aws_dynamodb_table.food.name
 }

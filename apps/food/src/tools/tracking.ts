@@ -3,32 +3,15 @@
 
 import { requireScopes, type McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
-import { ENTRY_LIMITS, ZERO, addNutrition, energyProblem, nutritionSchema, type Nutrition } from "../domain/nutrition";
-import { daysBetween, localParts, resolveInstant, today } from "../domain/time";
+import { ENTRY_LIMITS, energyProblem, nutritionSchema, type Nutrition } from "../domain/nutrition";
+import { localParts, resolveInstant } from "../domain/time";
 import { deleteFood, findFoods, saveFood } from "../store/catalog";
-import { listEntries } from "../store/entries";
-import { getProfile, listWeights, logWeight, updateProfile } from "../store/profile";
+import { getProfile, logWeight, updateProfile } from "../store/profile";
+import { eachDay, startOf, trends } from "../views";
 import { resolveTime, type ToolContext } from "./journal";
 import { fail, ok } from "./result";
 
 const round1 = (x: number) => Math.round(x * 10) / 10;
-
-/** The date `days - 1` days before `to`, so the range covers `days` days. */
-function startOf(to: string, days: number): string {
-  const d = new Date(`${to}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - (days - 1));
-  return d.toISOString().slice(0, 10);
-}
-
-function eachDay(from: string, to: string): string[] {
-  const out: string[] = [];
-  const d = new Date(`${from}T12:00:00Z`);
-  for (let i = 0; i <= daysBetween(from, to); i++) {
-    out.push(d.toISOString().slice(0, 10));
-    d.setUTCDate(d.getUTCDate() + 1);
-  }
-  return out;
-}
 
 function validTimeZone(tz: string): boolean {
   try {
@@ -129,58 +112,7 @@ export function registerTrackingTools(server: McpServer, ctx: ToolContext) {
       annotations: { readOnlyHint: true },
       scopeChallenge: canRead,
     },
-    async (args) => {
-      const profile = await getProfile(ctx.sub);
-      const days = args.days ?? 30;
-      const to = today(profile.time_zone);
-      const from = startOf(to, days);
-      const [entries, weights] = await Promise.all([listEntries(ctx.sub, from, to), listWeights(ctx.sub, from, to)]);
-
-      const byDay = new Map<string, Nutrition>();
-      for (const e of entries) byDay.set(e.local_date, addNutrition(byDay.get(e.local_date) ?? ZERO, e.totals));
-      const daily = eachDay(from, to).map((date) => ({ date, logged: byDay.has(date), ...(byDay.get(date) ?? ZERO) }));
-      const logged = daily.filter((d) => d.logged && d.date !== to); // today is still in progress
-
-      const average = logged.length
-        ? (Object.fromEntries(
-            (Object.keys(ZERO) as (keyof Nutrition)[]).map((k) => [k, round1(logged.reduce((s, d) => s + d[k], 0) / logged.length)]),
-          ) as unknown as Nutrition)
-        : null;
-
-      // kcal within ±10% of target; protein at least the target.
-      const t = profile.targets;
-      const onTarget = t
-        ? {
-            kcal_within_10pct: t.kcal ? logged.filter((d) => Math.abs(d.kcal - t.kcal!) <= 0.1 * t.kcal!).length : null,
-            protein_reached: t.protein_g ? logged.filter((d) => d.protein_g >= t.protein_g!).length : null,
-          }
-        : null;
-
-      let streak = 0;
-      for (let i = daily.length - 1; i >= 0; i--) {
-        const d = daily[i]!;
-        if (d.date === to && !d.logged) continue; // nothing yet today doesn't break the streak
-        if (!d.logged) break;
-        streak++;
-      }
-
-      const first = weights[0];
-      const last = weights[weights.length - 1];
-      return ok({
-        from,
-        to,
-        days_logged: logged.length,
-        days_complete: daily.length - 1,
-        logging_streak_days: streak,
-        average_per_logged_day: average,
-        targets: t ?? null,
-        days_on_target: onTarget,
-        weight: weights.length
-          ? { first, last, change_kg: first && last ? round1(last.kg - first.kg) : null, measurements: weights }
-          : null,
-        daily,
-      });
-    },
+    async (args) => ok(await trends(ctx.sub, args.days ?? 30)),
   );
 
   // --- Weight ------------------------------------------------------------------------

@@ -37,6 +37,21 @@ provider "aws" {
   }
 }
 
+# Workload account again, in us-east-1: CloudFront only accepts certificates
+# from there. Only the dashboard's certificate uses it; the region SCP allows
+# acm:* in any region (global-service exception), nothing else.
+provider "aws" {
+  alias   = "us_east_1"
+  region  = "us-east-1"
+  profile = var.aws_profile
+
+  allowed_account_ids = [var.account_id]
+
+  default_tags {
+    tags = local.tags
+  }
+}
+
 # Network account: the lab.michaelteplov.com hosted zone, for the
 # certificate validation record and the domain's alias records.
 #   locally -> profile network-admin (Identity Center)

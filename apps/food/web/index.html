@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Food</title>
+
+  <!-- Home-screen app: the manifest makes "Add to Home Screen" open it
+       standalone (no Safari bars); iOS also reads the apple-* tags. -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icon-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Food">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#1f6f4a">
+
+  <!-- File names carry a content hash (scripts/build-web.mjs), so they can be
+       cached for a year; this page itself is never cached. No inline script
+       or style: the CSP allows only files from this origin. -->
+  <link rel="stylesheet" href="__CSS__">
+  <script type="module" src="__JS__"></script>
+</head>
+<body>
+  <div id="app"></div>
+</body>
+</html>

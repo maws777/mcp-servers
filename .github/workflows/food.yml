@@ -63,6 +63,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      # The dashboard renders text only; this fails on any HTML-parsing API.
+      - run: npm run check-web -w apps/food
       - run: npm test
       - run: npm run test:store
 
@@ -217,4 +219,19 @@ jobs:
           jq -e --arg url "$url" '.resource == $url' prm.json
           status=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$url" -H 'content-type: application/json' -d '{}')
           echo "POST /mcp without a token: $status"
+          test "$status" = 401
+
+      # The dashboard: the page answers with its CSP, and /api goes through
+      # CloudFront to the dashboard Lambda, which refuses an anonymous call.
+      # A brand-new distribution can take a few minutes to answer everywhere.
+      - name: Smoke test (dashboard)
+        run: |
+          site=$(terraform output -raw dashboard_url)
+          for i in $(seq 1 20); do
+            curl -sSf -D headers.txt -o /dev/null "$site" && break
+            sleep 15
+          done
+          grep -i "^content-security-policy: default-src 'none'" headers.txt
+          status=$(curl -s -o /dev/null -w '%{http_code}' "${site}api/day")
+          echo "GET /api/day without a token: $status"
           test "$status" = 401

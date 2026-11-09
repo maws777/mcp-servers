@@ -10,6 +10,7 @@ import { getPot, listPots, savePot } from "../store/catalog";
 import { IdempotencyConflict } from "../store/db";
 import { getProfile } from "../store/profile";
 import { idempotencyKey, resolveTime, type ToolContext } from "./journal";
+import { batchView } from "../views";
 import { fail, ok } from "./result";
 
 const batchItems = z
@@ -48,25 +49,6 @@ async function resolveCookedWeight(
     return netWeight(args.gross_grams, pot.empty_grams);
   }
   return { grams: args.total_grams };
-}
-
-/** What Claude and the dashboard need to know about a batch. */
-function view(batch: Batch) {
-  return {
-    batch_id: batch.batch_id,
-    name: batch.name,
-    status: batch.status,
-    remaining_fraction: batch.remaining / WHOLE,
-    remaining: describeRemaining(batch),
-    remaining_nutrition: scale(batch.totals, batch.remaining),
-    totals: batch.totals,
-    total_grams: batch.total_grams ?? null,
-    raw_grams: batch.raw_grams ?? null,
-    portions: batch.portions ?? null,
-    cooked_at: batch.cooked_at,
-    age_days: ageInDays(batch.cooked_at),
-    items: batch.items,
-  };
 }
 
 function label(amount: Amount, units: number): string {
@@ -121,7 +103,7 @@ export function registerMealPrepTools(server: McpServer, ctx: ToolContext) {
           },
           { key: idempotency_key, request },
         );
-        return ok({ batch: view(batch), replayed });
+        return ok({ batch: batchView(batch), replayed });
       } catch (e) {
         if (e instanceof IdempotencyConflict) return fail(e.message);
         throw e;
@@ -140,7 +122,7 @@ export function registerMealPrepTools(server: McpServer, ctx: ToolContext) {
     },
     async (args) => {
       const batches = await listBatches(ctx.sub, args.include_closed ?? false);
-      return ok({ batches: batches.map(view) });
+      return ok({ batches: batches.map((b) => batchView(b)) });
     },
   );
 
@@ -201,7 +183,7 @@ export function registerMealPrepTools(server: McpServer, ctx: ToolContext) {
           return ok({
             taken: { share: portion.units / WHOLE, eaten_by: args.eaten_by ?? "me" },
             logged: result.entry ?? null,
-            batch: view(result.batch),
+            batch: batchView(result.batch),
             replayed: result.replayed,
           });
         } catch (e) {
@@ -254,7 +236,7 @@ export function registerMealPrepTools(server: McpServer, ctx: ToolContext) {
           total_grams: weight.grams,
           portions: args.portions,
         });
-        return ok({ batch: view(result.batch), portions_recomputed: result.recomputed });
+        return ok({ batch: batchView(result.batch), portions_recomputed: result.recomputed });
       } catch (e) {
         if (e instanceof BatchChanged) return fail(e.message);
         throw e;
@@ -274,9 +256,9 @@ export function registerMealPrepTools(server: McpServer, ctx: ToolContext) {
     async (args) => {
       const batch = await getBatch(ctx.sub, args.batch_id);
       if (!batch) return fail(`no batch ${args.batch_id}`);
-      if (batch.status === args.reason) return ok({ batch: view(batch) });
+      if (batch.status === args.reason) return ok({ batch: batchView(batch) });
       try {
-        return ok({ batch: view(await closeBatch(ctx.sub, batch, args.reason)) });
+        return ok({ batch: batchView(await closeBatch(ctx.sub, batch, args.reason)) });
       } catch (e) {
         if (e instanceof BatchChanged) return fail(e.message);
         throw e;
