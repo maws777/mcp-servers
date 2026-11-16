@@ -22,6 +22,18 @@ export function dayHash(entries: Entry[], profile: Profile): string {
   });
 }
 
+/**
+ * How old a cooked dish is, as a rule the model applies rather than a call
+ * it makes: cooked food keeps about 3-4 days in the fridge, so from day 4 the
+ * model may only suggest checking it, never eating it (a 7-day-old chili
+ * suggested as dinner was the first real summary's bug).
+ */
+export function fridgeState(ageDays: number): "frais" | "à finir bientôt" | "à vérifier" {
+  if (ageDays >= 4) return "à vérifier";
+  if (ageDays >= 2) return "à finir bientôt";
+  return "frais";
+}
+
 function averages(t: Awaited<ReturnType<typeof trends>>) {
   return {
     jours_notes: t.days_logged,
@@ -54,7 +66,12 @@ export async function buildContext(sub: string, date: string, entries: Entry[], 
       serie_jours_notes: week.logging_streak_days,
       frigo: batches.map((b) => {
         const v = batchView(b, now);
-        return { nom: v.name, cuisine_il_y_a_jours: v.age_days, reste_pourcentage: Math.round(v.remaining_fraction * 100) };
+        return {
+          nom: v.name,
+          cuisine_il_y_a_jours: v.age_days,
+          reste_pourcentage: Math.round(v.remaining_fraction * 100),
+          etat: fridgeState(v.age_days),
+        };
       }),
     },
     // Written from what I typed or photographed: untrusted, kept apart.

@@ -53,7 +53,7 @@ variable "parent_zone" {
 }
 
 variable "summary_schedule_enabled" {
-  description = "Run the nightly 'close the day' summaries. Off until the cost per call has been measured on real calls (design, section 3)."
+  description = "Run the nightly 'close the day' summaries. Enabled 2026-11-16 after measuring a real call (~0.1 cent)."
   type        = bool
-  default     = false
+  default     = true
 }
