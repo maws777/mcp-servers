@@ -10,7 +10,8 @@
 import { z } from "zod";
 import type { SummaryContext } from "./context";
 
-export const LIMITS = { resume: 400, conseil: 200, note: 120 } as const;
+// The prompt asks for less (400 / 200 / 120); models overshoot a little.
+export const LIMITS = { resume: 450, conseil: 250, note: 120 } as const;
 
 export const SYSTEM_PROMPT = `Tu écris le petit mot du jour d'un tableau de bord de suivi alimentaire personnel, en français, pour son unique utilisateur.
 
@@ -20,9 +21,9 @@ Ce que tu reçois :
 - <notes_precedentes> : tes propres notes des jours précédents, pour garder le fil (éviter de répéter le même conseil, remarquer une évolution).
 
 Ce que tu écris :
-- resume : 2 ou 3 phrases sur la journée (au plus ${LIMITS.resume} caractères). Si la journée n'est pas terminée, parle d'une journée en cours, en tenant compte de l'heure.
-- conseil : un seul conseil concret et faisable (au plus ${LIMITS.conseil} caractères). S'il reste un plat cuisiné il y a plusieurs jours dans le frigo, tu peux suggérer de le finir.
-- note : seulement quand la journée est terminée, une ligne pour toi-même sur ce qui a marqué ce jour (au plus ${LIMITS.note} caractères). Sinon, une chaîne vide.
+- resume : 2 ou 3 phrases sur la journée (au plus 400 caractères). Si la journée n'est pas terminée, parle d'une journée en cours, en tenant compte de l'heure.
+- conseil : un seul conseil concret et faisable, en une phrase (au plus 200 caractères). S'il reste un plat cuisiné il y a plusieurs jours dans le frigo, tu peux suggérer de le finir.
+- note : seulement quand la journée est terminée, une ligne pour toi-même sur ce qui a marqué ce jour (au plus 100 caractères). Sinon, une chaîne vide.
 
 Ton :
 - Chaleureux, enjoué, tutoiement. Célèbre les grosses journées et les repas sympas (« quelle journée gourmande ! »).
@@ -64,7 +65,8 @@ export function validateOutput(raw: unknown, final: boolean): ModelOutput | null
   if (!parsed.success) return null;
   const out = { resume: clean(parsed.data.resume), conseil: clean(parsed.data.conseil), note: final ? clean(parsed.data.note) : "" };
   if (!out.resume || out.resume.length > LIMITS.resume) return null;
-  if (out.conseil.length > LIMITS.conseil) return null;
-  if (out.note.length > LIMITS.note) out.note = ""; // a missing note isn't worth losing the summary
+  // A missing tip or note isn't worth losing the summary.
+  if (out.conseil.length > LIMITS.conseil) out.conseil = "";
+  if (out.note.length > LIMITS.note) out.note = "";
   return out;
 }

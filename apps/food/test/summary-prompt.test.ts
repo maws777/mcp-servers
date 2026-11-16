@@ -24,7 +24,10 @@ describe("validateOutput", () => {
   it("refuses an empty or too long summary", () => {
     expect(validateOutput({ resume: "  ", conseil: "", note: "" }, false)).toBeNull();
     expect(validateOutput({ resume: "x".repeat(LIMITS.resume + 1), conseil: "", note: "" }, false)).toBeNull();
-    expect(validateOutput({ resume: "ok", conseil: "x".repeat(LIMITS.conseil + 1), note: "" }, false)).toBeNull();
+  });
+
+  it("drops a too long tip but keeps the summary", () => {
+    expect(validateOutput({ resume: "ok", conseil: "x".repeat(LIMITS.conseil + 1), note: "" }, false)).toEqual({ resume: "ok", conseil: "", note: "" });
   });
 
   it("drops a too long note but keeps the summary", () => {

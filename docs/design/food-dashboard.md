@@ -152,18 +152,19 @@ page opens ─► GET /api/summary?date=        (dashboard Lambda)
   `lambda:InvokeFunction` on the summary Lambda only (async, `Event`).
 - **Schedule** `mcp-food-<env>-close-day`: `cron(30 23 * * ? *)` in
   `Europe/Paris`, its own role allowed to invoke the summary Lambda only.
-- **Model call:** `eu.anthropic.claude-haiku-5-5` through the Anthropic SDK's
-  Bedrock client (`@anthropic-ai/bedrock-sdk`, `AnthropicBedrock`: the
-  `bedrock:InvokeModel` path the boundary and the region SCP allow), effort
-  `low`, **structured outputs** (`output_config.format`) with the schema
-  `{ resume, conseil, note }`. *Changed while building (2026-11-16): the
-  forced tool from the first draft is replaced by structured outputs, which
-  give the same guarantee without a fake tool.* The model has no tools.
-  Lengths checked in code (`resume` ≤ 400 characters, `conseil` ≤ 200,
-  `note` ≤ 120 at night), control and invisible characters stripped,
-  anything invalid dropped (the previous summary stays). In the prompt, `<`
-  and `>` in the data blocks are escaped, so a meal can't fake the end of
-  its block.
+- **Model call:** Bedrock **Converse** API, one forced tool `write_summary`
+  whose input schema is the answer `{ resume, conseil, note }` (structured
+  output; the tool is never executed, the model has no real tools). The
+  model is configuration (`MODEL_ID`, `MODEL_REGION`). *Changed 2026-11-16:
+  Claude Haiku 5.5's quota is 0 in the account (support case open), so the
+  summaries run on **DeepSeek V3.2, on demand in `eu-north-1`** (AWS-hosted
+  open weights, EU), landing-zone ADR 0015. Converse works for both, so
+  going back to Haiku is a configuration change.* Prompt asks for
+  `resume` ≤ 400 characters, `conseil` ≤ 200, `note` ≤ 100; code accepts
+  450 / 250 / 120, drops a too long tip or note, and refuses a too long
+  summary (the previous one stays). Control and invisible characters
+  stripped. In the prompt, `<` and `>` in the data blocks are escaped, so a
+  meal can't fake the end of its block.
 - **Only today is generated.** A past day shows the summary it had (or none):
   nobody can make the app pay for a year of history.
 - **The schedule ships disabled** (`summary_schedule_enabled = false`) until

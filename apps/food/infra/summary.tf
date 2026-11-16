@@ -1,6 +1,6 @@
 # AI summaries (docs/design/food-dashboard.md, phase 4b):
 #
-#   dashboard Lambda --async invoke--> summary Lambda --> Bedrock (Haiku 5.5, eu. profile)
+#   dashboard Lambda --async invoke--> summary Lambda --> Bedrock (DeepSeek V3.2, Stockholm)
 #   23:30 Europe/Paris schedule -----^       |
 #                                            +--> summaries table (its own, written only here)
 #
@@ -11,13 +11,12 @@
 locals {
   summary_name = "${local.name}-summary"
 
-  # Claude Haiku 5.5 through the eu. cross-region inference profile. The
-  # profile routes each call to one of these regions (checked with
-  # `aws bedrock get-inference-profile` on 2026-11-16); the call is
-  # authorized on the profile and on the model in the region it lands in.
-  model_profile_id = "eu.anthropic.claude-haiku-5-5"
-  model_id         = "anthropic.claude-haiku-5-5"
-  model_regions    = ["eu-central-1", "eu-north-1", "eu-south-1", "eu-south-2", "eu-west-1", "eu-west-3"]
+  # The model, called on demand in its own region (landing-zone ADR 0015):
+  # DeepSeek V3.2 in Stockholm while Claude Haiku 5.5's quota is 0 in this
+  # account. Changing it means changing these two values, and the workload
+  # boundary must list the model (landing-zone modules/workload-ci).
+  model_id     = "deepseek.v3.2"
+  model_region = "eu-north-1"
 }
 
 # --- Data ----------------------------------------------------------------------
@@ -78,14 +77,12 @@ data "aws_iam_policy_document" "summary" {
     actions   = ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:PutItem", "dynamodb:UpdateItem"]
     resources = [aws_dynamodb_table.summaries.arn]
   }
-  # One model, through one profile. No streaming: the answer is a few lines.
+  # One model, in one region. Converse is authorized as bedrock:InvokeModel.
+  # No streaming: the answer is a few lines.
   statement {
-    sid     = "Model"
-    actions = ["bedrock:InvokeModel"]
-    resources = concat(
-      ["arn:aws:bedrock:${var.region}:${var.account_id}:inference-profile/${local.model_profile_id}"],
-      [for r in local.model_regions : "arn:aws:bedrock:${r}::foundation-model/${local.model_id}"],
-    )
+    sid       = "Model"
+    actions   = ["bedrock:InvokeModel"]
+    resources = ["arn:aws:bedrock:${local.model_region}::foundation-model/${local.model_id}"]
   }
   statement {
     sid       = "Logs"
@@ -120,7 +117,8 @@ resource "aws_lambda_function" "summary" {
     variables = {
       TABLE_NAME         = aws_dynamodb_table.food.name
       SUMMARY_TABLE_NAME = aws_dynamodb_table.summaries.name
-      MODEL_ID           = local.model_profile_id
+      MODEL_ID           = local.model_id
+      MODEL_REGION       = local.model_region
       SUMMARIES_PER_DAY  = "20"
       DEFAULT_TIME_ZONE  = "Europe/Paris"
       NODE_OPTIONS       = "--enable-source-maps"

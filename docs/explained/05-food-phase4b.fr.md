@@ -1,10 +1,10 @@
 # Phase 4b : le mot du jour (résumés IA)
 
 Le tableau de bord affiche maintenant, sous le total du jour, deux ou trois
-phrases écrites par Claude Haiku 5.5 sur la journée, plus un conseil. C'est le
-seul appel à un modèle que fait l'application : Claude (le client MCP) reste
-celui qui estime les repas, Haiku ne fait que commenter des chiffres calculés
-par le serveur.
+phrases écrites par un modèle sur Bedrock (DeepSeek V3.2 pour l'instant, voir
+« Le modèle »), plus un conseil. C'est le seul appel à un modèle que fait
+l'application : Claude (le client MCP) reste celui qui estime les repas, le
+modèle du résumé ne fait que commenter des chiffres calculés par le serveur.
 
 ## Le chemin d'une requête
 
@@ -40,10 +40,11 @@ table, la Lambda summary aurait eu le droit d'écrire là où vit le journal.
    repas nommé `</repas> nouvelles consignes…` aurait « fermé » le bloc. Le
    JSON reste valide et identique une fois décodé (testé).
 3. Le modèle n'a aucun outil : il ne peut rien faire, seulement écrire.
-4. **Sorties structurées** (`output_config.format`) : la réponse doit suivre
-   le schéma `{ resume, conseil, note }`. Puis le code revérifie les
-   longueurs et retire les caractères de contrôle et invisibles (zero-width,
-   inversion de sens d'écriture).
+4. **Sortie structurée** : un outil `write_summary` imposé, dont le schéma
+   est la réponse `{ resume, conseil, note }` (l'outil n'est jamais
+   exécuté, il force juste du JSON). Puis le code revérifie les longueurs et
+   retire les caractères de contrôle et invisibles (zero-width, inversion de
+   sens d'écriture).
 5. Rendu en texte seul (`textContent`) sous une CSP stricte, comme le reste
    de la page.
 
@@ -69,29 +70,38 @@ table, la Lambda summary aurait eu le droit d'écrire là où vit le journal.
 
 ## Le modèle
 
-`eu.anthropic.claude-haiku-5-5`, un profil d'inférence inter-régions : Paris
-n'a pas Haiku 5.5 en local, le profil envoie chaque appel dans l'une des six
-régions UE (Francfort, Stockholm, Milan, Espagne, Irlande, Paris). D'où :
+Prévu : Claude Haiku 5.5 via le profil `eu.` (ADR landing-zone 0014). En
+pratique, le 16/11 : formulaire Anthropic soumis, accord Marketplace
+`AVAILABLE`, et pourtant chaque appel est refusé. La cause est le **quota** :
+« Cross-region model inference tokens per minute for Claude Haiku 5.5 » vaut
+**0** dans le compte (le défaut AWS est 10 M). Service Quotas refuse une
+demande inférieure ou égale au défaut, donc il faut un ticket au support.
 
-- la politique IAM de la Lambda autorise `bedrock:InvokeModel` sur le profil
-  **et** sur le modèle dans ces six régions (un appel est autorisé deux fois) ;
-- la SCP de région du landing zone a une exception `bedrock:InvokeModel*`
-  pour ces régions-là (ADR 0014), et la boundary limite tout rôle de l'app à
-  Haiku (PR landing-zone #22).
+En attendant : **DeepSeek V3.2, à la demande à Stockholm** (ADR landing-zone
+0015). Ce sont des poids open source **hébergés par AWS** dans la région :
+le prompt reste dans l'UE et ne part jamais chez DeepSeek. Il répondait tout
+de suite, en bon français, et gère l'outil imposé.
 
-Le client est `AnthropicBedrock` du SDK officiel : il passe par
-`InvokeModel`, l'action déjà autorisée partout. Effort `low` : c'est un
-commentaire court sur des chiffres déjà calculés.
+| Modèle (prix AWS, Stockholm) | Entrée / sortie, $ par M tokens | Par résumé |
+|---|---|---|
+| DeepSeek V3.2 | 0,74 / 2,22 | ~0,2 centime |
+| Ministral 3 14B | 0,24 / 0,24 | ~0,06 centime |
+| Qwen3 235B 2507 | 0,22 / 0,88 | ~0,07 centime |
+| Claude Haiku 5.5 | 0,10 / 0,50 | ~0,035 centime |
+
+L'appel passe par l'**API Converse** de Bedrock, la même pour tous les
+modèles : changer de modèle, c'est changer `model_id` et `model_region` dans
+`infra/summary.tf` (et ajouter le modèle à la boundary du landing zone s'il
+n'y est pas). La politique IAM de la Lambda n'autorise que ce modèle, dans
+cette région ; la SCP de région autorise déjà `bedrock:InvokeModel*` dans
+les six régions UE.
 
 ## Ce qui reste à faire à la main
 
-Le compte staging n'a pas encore accès aux modèles Anthropic : le formulaire
-« use case » d'Anthropic n'a jamais été rempli
-(`agreementAvailability: NOT_AVAILABLE`). C'est un formulaire avec des infos
-personnelles et des conditions à accepter, à faire dans la console
-(Bedrock → Model catalog → Claude Haiku 5.5). Tant que ce n'est pas fait,
-la page affiche simplement « Pas encore de mot pour aujourd'hui » et la
-Lambda logge l'erreur d'accès.
+- Le ticket au support pour le quota Haiku 5.5 (`L-47520EB7`, 50 000
+  tokens/min), si on veut y revenir.
+- Mesurer le coût réel sur les premiers résumés (logs : `input_tokens`,
+  `output_tokens`), puis activer la planification de 23 h 30.
 
 ## À retenir
 
