@@ -22,7 +22,8 @@ import { listUsers } from "./store";
 
 type SummaryEvent = { mode: "day"; sub: string; date: string } | { mode: "close-day" };
 
-const model = bedrockModel(process.env.MODEL_ID ?? "eu.anthropic.claude-haiku-5-5", process.env.AWS_REGION ?? "eu-west-3");
+// Which model, and the region its endpoint is in (not always this function's).
+const model = bedrockModel(process.env.MODEL_ID ?? "deepseek.v3.2", process.env.MODEL_REGION ?? "eu-north-1");
 
 export async function handler(event: SummaryEvent): Promise<void> {
   if (event.mode === "day") {
