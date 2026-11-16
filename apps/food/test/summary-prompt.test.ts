@@ -51,3 +51,10 @@ describe("userMessage", () => {
     expect(JSON.parse(inside)).toEqual(repas);
   });
 });
+
+describe("fridgeState", () => {
+  it("never lets a 4-day-old dish be suggested as a meal", async () => {
+    const { fridgeState } = await import("../src/summary/context");
+    expect([0, 1, 2, 3, 4, 7].map(fridgeState)).toEqual(["frais", "frais", "à finir bientôt", "à finir bientôt", "à vérifier", "à vérifier"]);
+  });
+});

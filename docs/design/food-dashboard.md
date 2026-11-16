@@ -179,9 +179,20 @@ meals themselves go in as a JSON block (description, time, kcal) inside a
 clearly delimited section, with the system prompt saying that anything in
 it is data, never instructions.
 
-Tone rules in the system prompt: French, warm and playful, celebrate big
-days, **never** shame, **never** suggest eating less to compensate, no
-medical advice, no numbers the server didn't provide.
+Tone rules in the system prompt: French, **direct coach** (changed
+2026-11-16 at my request: the first, warm version celebrated a day over
+target, while my goal is to lose weight). It states the numbers plainly
+(target exceeded, by how much, which meals weighed most), praises only what
+earned it, and its tips aim at the weekly trend: a lighter next meal, more
+vegetables or protein, smaller portions of something specific. Kept from the
+first version: no insults or mocking, no judging the body, **never** skip a
+meal, fast or eat very little to compensate (yo-yo), no medical advice, no
+numbers the server didn't provide.
+
+Fridge: the code labels each open batch `frais` (0-1 day), `à finir
+bientôt` (2-3) or `à vérifier` (4+); the model may only suggest eating the
+first two. Cooked food keeps about 3-4 days; the first real summary
+suggested finishing a 7-day-old chili.
 
 ### Cost and abuse
 
