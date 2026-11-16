@@ -24,8 +24,12 @@ export default async function setup() {
     region: env.AWS_REGION,
     credentials: { accessKeyId: env.AWS_ACCESS_KEY_ID, secretAccessKey: env.AWS_SECRET_ACCESS_KEY },
   });
-  const TableName = env.TABLE_NAME;
+  // The journal and the summaries table: same key schema.
+  for (const TableName of [env.TABLE_NAME, env.SUMMARY_TABLE_NAME]) await recreate(client, TableName, endpoint);
+  client.destroy();
+}
 
+async function recreate(client: DynamoDBClient, TableName: string, endpoint: URL) {
   try {
     await client.send(new DeleteTableCommand({ TableName }));
   } catch (e) {
@@ -55,5 +59,4 @@ export default async function setup() {
     }),
   );
   await waitUntilTableExists({ client, maxWaitTime: 30 }, { TableName });
-  client.destroy();
 }

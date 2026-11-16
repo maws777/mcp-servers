@@ -1,7 +1,7 @@
 // The four screens. Each takes API data and returns DOM, built with h()/s()
 // only (text nodes, never parsed HTML).
 
-import type { DayResponse, FridgeResponse, HistoryResponse, Nutrition, TrendsResponse } from "./api";
+import type { DayResponse, FridgeResponse, HistoryResponse, Nutrition, SummaryResponse, TrendsResponse } from "./api";
 import { h, s } from "./dom";
 
 // --- Formatting ------------------------------------------------------------------
@@ -111,7 +111,29 @@ export function dayView(data: DayResponse, go: (hash: string) => void): HTMLElem
   });
 
   const empty = entries.length === 0 ? h("p", { class: "muted center" }, "Rien de noté ce jour-là.") : null;
-  return h("div", {}, nav, headline, macros, ...meals, empty);
+  // Filled in by main.ts once /api/summary answers (it can take a few seconds).
+  const summarySlot = h("div", { id: "summary-slot" });
+  return h("div", {}, nav, headline, summarySlot, macros, ...meals, empty);
+}
+
+// --- Le mot du jour (AI summary) -------------------------------------------------------
+
+/**
+ * The model's text, as text nodes only: it was written by a model that read
+ * my meal descriptions, so it's as untrusted as they are.
+ */
+export function summaryCard(data: SummaryResponse, stillWorking: boolean): HTMLElement | null {
+  const s = data.summary;
+  if (!s && data.status !== "pending") return null;
+  const status = stillWorking && data.status === "pending" ? (s ? "Mise à jour…" : "J'écris le mot du jour…") : null;
+  return h(
+    "section",
+    { class: "card summary" },
+    h("h2", {}, s?.final ? "Le mot de la journée" : "Le mot du jour", status ? h("span", { class: "muted small" }, ` · ${status}`) : null),
+    s ? h("p", {}, s.resume) : null,
+    s?.conseil ? h("p", { class: "tip" }, s.conseil) : null,
+    !s && !stillWorking ? h("p", { class: "muted small" }, "Pas encore de mot pour aujourd'hui, réessaie dans un moment.") : null,
+  );
 }
 
 // --- Tendances ------------------------------------------------------------------------

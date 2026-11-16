@@ -9,4 +9,5 @@ export const storeTestEnv = {
   AWS_ACCESS_KEY_ID: "local",
   AWS_SECRET_ACCESS_KEY: "local",
   TABLE_NAME: "mcp-food-test",
+  SUMMARY_TABLE_NAME: "mcp-food-summaries-test",
 };

@@ -2,10 +2,35 @@
 //
 //   #/day/2026-11-09   #/trends/7   #/fridge   #/history/2026-11
 
-import { NeedsLogin, get, type DayResponse, type FridgeResponse, type HistoryResponse, type TrendsResponse } from "./api";
+import { NeedsLogin, get, type DayResponse, type FridgeResponse, type HistoryResponse, type SummaryResponse, type TrendsResponse } from "./api";
 import { handleCallback, login, logout, type Config } from "./auth";
 import { h } from "./dom";
-import { dayView, fridgeView, historyView, trendsView } from "./views";
+import { dayView, fridgeView, historyView, summaryCard, trendsView } from "./views";
+
+let renderId = 0; // bumped on each render: a late summary for a page that's gone is dropped
+
+/**
+ * Loads the day's summary into its slot. When it's being regenerated, asks
+ * again a few times (the model takes a few seconds), then stops: the next
+ * app open will pick it up.
+ */
+async function loadSummary(date: string, id: number) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 4000));
+    if (id !== renderId) return;
+    let data: SummaryResponse;
+    try {
+      data = await get<SummaryResponse>(cfg, `/api/summary?date=${date}`);
+    } catch {
+      return; // the summary is a bonus: never break the page for it
+    }
+    if (id !== renderId) return;
+    const working = data.status === "pending" && attempt < 3;
+    const card = summaryCard(data, working);
+    document.getElementById("summary-slot")?.replaceChildren(...(card ? [card] : []));
+    if (!working) return;
+  }
+}
 
 const app = document.getElementById("app")!;
 let cfg: Config;
@@ -53,6 +78,7 @@ function loginScreen(message?: string) {
 async function render() {
   const [, view = "day", arg] = location.hash.split("/");
   const route = `#/${view}`;
+  const id = ++renderId;
   const main = h("main", {}, h("p", { class: "muted center" }, "Chargement…"));
   show(main, tabBar(route));
 
@@ -74,6 +100,10 @@ async function render() {
     }
     content.appendChild(h("button", { type: "button", class: "link", onclick: () => logout(cfg) }, "Se déconnecter"));
     main.replaceChildren(content);
+    if (view !== "trends" && view !== "fridge" && view !== "history") {
+      const date = arg && /^\d{4}-\d{2}-\d{2}$/.test(arg) ? arg : today;
+      void loadSummary(date, id);
+    }
   } catch (e) {
     if (e instanceof NeedsLogin) return loginScreen();
     main.replaceChildren(h("p", { class: "error center" }, "Impossible de charger les données."), h("button", { type: "button", onclick: () => void render() }, "Réessayer"));

@@ -1,6 +1,7 @@
-// Bundles the two Lambdas, each into one file + source map:
+// Bundles the three Lambdas, each into one file + source map:
 //   dist/mcp/index.mjs        the MCP server (src/lambda.ts)
 //   dist/dashboard/index.mjs  the dashboard API (src/dashboard/lambda.ts)
+//   dist/summary/index.mjs    the AI summaries (src/summary/lambda.ts)
 // Each folder becomes its own zip (infra/main.tf), so each function ships
 // only its own code.
 //
@@ -14,7 +15,11 @@ import { rmSync } from "node:fs";
 rmSync("dist", { recursive: true, force: true });
 
 await build({
-  entryPoints: { "mcp/index": "src/lambda.ts", "dashboard/index": "src/dashboard/lambda.ts" },
+  entryPoints: {
+    "mcp/index": "src/lambda.ts",
+    "dashboard/index": "src/dashboard/lambda.ts",
+    "summary/index": "src/summary/lambda.ts",
+  },
   bundle: true,
   platform: "node",
   target: "node22",

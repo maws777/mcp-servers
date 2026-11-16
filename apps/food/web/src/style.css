@@ -141,3 +141,17 @@ button.primary {
   background: var(--accent); color: #fff; border: 0; border-radius: 12px; padding: 12px 28px; font-weight: 600; margin-top: 16px;
 }
 button.link { display: block; margin: 24px auto 0; border: 0; background: none; color: var(--muted); text-decoration: underline; }
+
+/* Le mot du jour (AI summary) */
+.summary {
+  border-left: 3px solid var(--accent);
+}
+.summary p {
+  margin: 0.4em 0 0;
+  line-height: 1.45;
+}
+.summary .tip {
+  background: var(--accent-soft);
+  border-radius: 8px;
+  padding: 0.5em 0.7em;
+}

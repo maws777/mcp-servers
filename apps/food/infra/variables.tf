@@ -51,3 +51,9 @@ variable "parent_zone" {
   type    = string
   default = "lab.michaelteplov.com"
 }
+
+variable "summary_schedule_enabled" {
+  description = "Run the nightly 'close the day' summaries. Off until the cost per call has been measured on real calls (design, section 3)."
+  type        = bool
+  default     = false
+}
