@@ -61,6 +61,12 @@ export interface HistoryResponse {
   days: { date: string; logged: boolean; kcal: number }[];
 }
 
+export interface SummaryResponse {
+  date: string;
+  status: "ready" | "pending" | "stale" | "none";
+  summary: { resume: string; conseil: string; final: boolean; generated_at: string | null } | null;
+}
+
 /** Thrown when there's no way to get a token: the page shows the login screen. */
 export class NeedsLogin extends Error {}
 

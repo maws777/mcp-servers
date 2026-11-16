@@ -125,6 +125,8 @@ resource "aws_lambda_function" "dashboard" {
       TABLE_NAME          = aws_dynamodb_table.food.name
       USER_POOL_ID        = local.user_pool_id
       DASHBOARD_CLIENT_ID = aws_cognito_user_pool_client.dashboard.id
+      SUMMARY_TABLE_NAME  = aws_dynamodb_table.summaries.name
+      SUMMARY_FUNCTION    = aws_lambda_function.summary.function_name
       RESOURCE            = local.resource_uri
       DEFAULT_TIME_ZONE   = "Europe/Paris"
       NODE_OPTIONS        = "--enable-source-maps"
