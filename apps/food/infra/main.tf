@@ -249,9 +249,16 @@ resource "aws_apigatewayv2_stage" "default" {
   name        = "$default"
   auto_deploy = true
 
+  # The rate limit, and the cost ceiling: every request that gets through
+  # reaches a Lambda, even an anonymous one (the token is checked in the code),
+  # so the limit bounds what a flood can cost. One user needs very little: a
+  # dashboard load is 4 parallel GETs, a Claude conversation a few sequential
+  # tool calls. Above this, API Gateway answers 429 without invoking Lambda.
+  # (Reserved concurrency would be a second cap, but the account's Lambda quota
+  # is 10, and AWS keeps 10 unreserved: that quota is already the cap.)
   default_route_settings {
-    throttling_burst_limit = 20
-    throttling_rate_limit  = 10
+    throttling_burst_limit = 10
+    throttling_rate_limit  = 3
   }
 }
 
