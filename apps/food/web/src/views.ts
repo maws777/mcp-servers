@@ -9,6 +9,7 @@ import { h, s } from "./dom";
 const num = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
 const num1 = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
 const kcal = (n: number) => `${num.format(n)} kcal`;
+const timeOf = (iso: string) => new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
 const grams = (n: number) => `${num.format(n)} g`;
 
 function dateLabel(date: string, today: string): string {
@@ -55,7 +56,7 @@ export function dayView(data: DayResponse, go: (hash: string) => void): HTMLElem
     "header",
     { class: "daynav" },
     h("button", { type: "button", "aria-label": "Jour précédent", onclick: () => go(`#/day/${shift(summary.date, -1)}`) }, "‹"),
-    h("h1", {}, dateLabel(summary.date, today)),
+    h("h1", {}, dateLabel(summary.date, today), summary.date === today ? h("span", { class: "tag" }, " en cours") : null),
     h(
       "button",
       { type: "button", "aria-label": "Jour suivant", disabled: summary.date >= today, onclick: () => go(`#/day/${shift(summary.date, 1)}`) },
@@ -132,6 +133,7 @@ export function summaryCard(data: SummaryResponse, stillWorking: boolean): HTMLE
     h("h2", {}, s?.final ? "Le mot de la journée" : "Le mot du jour", status ? h("span", { class: "muted small" }, ` · ${status}`) : null),
     s ? h("p", {}, s.resume) : null,
     s?.conseil ? h("p", { class: "tip" }, s.conseil) : null,
+    s?.generated_at ? h("p", { class: "muted small" }, `Écrit à ${timeOf(s.generated_at)}`) : null,
     !s && !stillWorking ? h("p", { class: "muted small" }, "Pas encore de mot pour aujourd'hui, réessaie dans un moment.") : null,
   );
 }
@@ -159,6 +161,12 @@ export function trendsView(data: TrendsResponse, days: number, go: (hash: string
   const t = data.targets ?? {};
   const choose = (n: number) => h("button", { type: "button", class: n === days ? "on" : "", onclick: () => go(`#/trends/${n}`) }, `${n} jours`);
   const stat = (label: string, value: string) => h("div", { class: "stat" }, h("span", { class: "muted" }, label), h("strong", {}, value));
+  // An average over one or two days says nothing: below 3 complete logged
+  // days, say so instead of showing a number that looks meaningful.
+  const enough = data.days_logged >= 3;
+  const per = enough ? ` (${data.days_logged} j)` : "";
+  const avgKcal = !avg ? "-" : enough ? kcal(avg.kcal) : "pas assez de données";
+  const avgProt = !avg ? "-" : enough ? grams(avg.protein_g) : "pas assez de données";
 
   return h(
     "div",
@@ -169,9 +177,9 @@ export function trendsView(data: TrendsResponse, days: number, go: (hash: string
     h(
       "section",
       { class: "card stats" },
-      stat("Moyenne", avg ? kcal(avg.kcal) : "-"),
-      stat("Protéines / jour", avg ? grams(avg.protein_g) : "-"),
-      stat("Jours notés", `${data.days_logged} / ${data.days_complete}`),
+      stat(`Moyenne${per}`, avgKcal),
+      stat(`Protéines / jour${per}`, avgProt),
+      stat("Jours notés (aujourd'hui exclu)", `${data.days_logged} / ${data.days_complete}`),
       stat("Série en cours", `${data.logging_streak_days} j`),
       data.days_on_target?.kcal_within_10pct != null ? stat("Dans l'objectif (±10 %)", `${data.days_on_target.kcal_within_10pct} j`) : null,
       data.weight?.last ? stat("Poids", `${num1.format(data.weight.last.kg)} kg`) : null,
@@ -195,6 +203,9 @@ export function fridgeView(data: FridgeResponse): HTMLElement {
       bar(b.remaining_fraction, 1),
       h("p", {}, `Reste ${left.join(", ")}`),
       h("p", { class: "muted" }, `${age} · ${kcal(b.remaining_nutrition.kcal)} restantes`),
+      // A dish this old is probably gone: the page can't write, so it says
+      // how to close it.
+      b.age_days >= 5 ? h("p", { class: "small warn" }, `Toujours là ? Sinon, dis à Claude « ${b.name} : fini » ou « jeté ».`) : null,
     );
   });
   return h(

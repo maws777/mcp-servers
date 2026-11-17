@@ -34,7 +34,9 @@ const items = z
   .min(1)
   .max(30)
   .describe("What was eaten, one element per food or ingredient, each estimated separately for its quantity. A single food is a list of one.");
-const meal = z.enum(["breakfast", "lunch", "dinner", "snack"]);
+const meal = z
+  .enum(["breakfast", "lunch", "dinner", "snack"])
+  .describe("Always set it: what the user says, else by time and size (a full plate is lunch or dinner, not a snack)");
 const eatenAt = z
   .string()
   .max(40)
