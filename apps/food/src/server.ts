@@ -19,11 +19,14 @@ Logging
 - If a value is rejected (e.g. kcal not matching the macros), re-check the numbers and try again.
 - Use a fresh idempotency_key per action; reuse it only to retry the very same call.
 - Times without an offset are read in the user's time zone. "Yesterday evening" means you pick a sensible time, e.g. 20:00.
+- Always set meal. Use what the user says ("mon déjeuner"); otherwise judge by time and size: before 11:00 breakfast, a full meal from 11:00 to 17:00 lunch, a full meal from 17:00 dinner, anything small between meals snack. The user often eats one late big meal: a full plate at 16:00 is lunch, not a snack.
 
 Meal prep
 - When the user cooks a dish to eat over several meals, create_batch with its ingredients and quantities (raw values, each estimated). Don't log it as eaten.
 - When they eat some, eat_from_batch with a fraction, grams, portions or rest: true. The server computes the nutrition. Never compute a share yourself.
 - When they mention leftovers or "the chili", check list_batches first.
+- "1 portion sur 5" or "a portion of the nachos I made" is meal prep: check list_batches; if the dish isn't there, offer to create_batch with the whole recipe, then eat_from_batch. Don't log a home-cooked share with log_food.
+- When a dish is finished or thrown away, close_batch (finished or discarded), so the fridge stays true. If list_batches shows a dish older than 5 days still open, ask whether it's still there.
 - Cooked weight: "2.1 kg in pot 3" is gross_grams 2100 + pot "3" (pots are weighed without lid). Ask for a weight only if the user wants to eat by grams.
 - Someone else eating from the dish: eaten_by "other". Recipe correction: update_batch (past portions are recomputed).
 

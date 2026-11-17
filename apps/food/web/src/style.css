@@ -155,3 +155,13 @@ button.link { display: block; margin: 24px auto 0; border: 0; background: none; 
   border-radius: 8px;
   padding: 0.5em 0.7em;
 }
+
+/* An old dish in the fridge: ask whether it's still there */
+.warn {
+  color: var(--warm);
+}
+.daynav h1 .tag {
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
