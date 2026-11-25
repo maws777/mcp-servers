@@ -67,7 +67,7 @@ export function registerTrackingTools(server: McpServer, ctx: ToolContext) {
     {
       title: "Delete saved food",
       description: "Remove a saved food by its name.",
-      inputSchema: z.object({ name: z.string().trim().min(1).max(80) }),
+      inputSchema: z.object({ name: z.string().trim().min(1).max(80).describe("The saved food's name, as find_my_food shows it") }),
       annotations: { destructiveHint: true, idempotentHint: true },
       scopeChallenge: canWrite,
     },
@@ -82,12 +82,12 @@ export function registerTrackingTools(server: McpServer, ctx: ToolContext) {
       title: "Set targets",
       description: "Set daily targets (any subset; the others stay as they are) and optionally the user's time zone (IANA name, e.g. Europe/Paris).",
       inputSchema: z.object({
-        kcal: z.number().min(800).max(6000).optional(),
-        protein_g: z.number().min(0).max(400).optional(),
-        carbs_g: z.number().min(0).max(900).optional(),
-        fat_g: z.number().min(0).max(400).optional(),
-        fiber_g: z.number().min(0).max(100).optional(),
-        time_zone: z.string().max(60).optional(),
+        kcal: z.number().min(800).max(6000).optional().describe("Daily energy target, kcal"),
+        protein_g: z.number().min(0).max(400).optional().describe("Daily protein target, grams (a minimum)"),
+        carbs_g: z.number().min(0).max(900).optional().describe("Daily carbohydrate target, grams"),
+        fat_g: z.number().min(0).max(400).optional().describe("Daily fat target, grams"),
+        fiber_g: z.number().min(0).max(100).optional().describe("Daily fiber target, grams"),
+        time_zone: z.string().max(60).optional().describe("IANA time zone, e.g. \"Europe/Paris\"; days and times are read in it"),
       }),
       annotations: { idempotentHint: true },
       scopeChallenge: canWrite,
@@ -108,7 +108,7 @@ export function registerTrackingTools(server: McpServer, ctx: ToolContext) {
       description:
         "Daily totals over the last N days (default 30), averages over logged days, how many days were logged and on target, and the weight trend. " +
         "Use it for questions like 'how was my week'.",
-      inputSchema: z.object({ days: z.number().int().min(7).max(90).optional() }),
+      inputSchema: z.object({ days: z.number().int().min(7).max(90).optional().describe("How many days back, 7-90. Default 30") }),
       annotations: { readOnlyHint: true },
       scopeChallenge: canRead,
     },
@@ -123,7 +123,7 @@ export function registerTrackingTools(server: McpServer, ctx: ToolContext) {
       title: "Log weight",
       description: "Record the user's body weight. One per day: a second weighing the same day replaces the first.",
       inputSchema: z.object({
-        kg: z.number().min(30).max(300),
+        kg: z.number().min(30).max(300).describe("Body weight, kg"),
         measured_at: z.string().max(40).optional().describe("When. Omit for now."),
       }),
       annotations: { idempotentHint: true },

@@ -1,0 +1,70 @@
+# The daily summary eval (apps/food/eval/README.md): real models on Bedrock,
+# so by hand or weekly, never on pull requests. The report lands in the job
+# summary and, with every answer, in an artifact.
+#
+# Needs a role allowed to call the compared models and nothing else, set as the
+# repository variable EVAL_ROLE_ARN (a landing-zone change: the CI roles are
+# denied bedrock:InvokeModel on purpose). Without it the job says so and stops.
+
+name: summary-eval
+
+on:
+  workflow_dispatch:
+    inputs:
+      models:
+        description: "Model keys from apps/food/eval/summary/models.ts, comma-separated (empty: all)"
+        default: ""
+      runs:
+        description: "Runs per day and model"
+        default: "5"
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Role configured?
+        id: role
+        run: |
+          if [ -z "${{ vars.EVAL_ROLE_ARN }}" ]; then
+            echo "::notice::EVAL_ROLE_ARN isn't set: no role to call the models with, skipping."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.role.outputs.ok == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - if: steps.role.outputs.ok == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - if: steps.role.outputs.ok == 'true'
+        run: npm ci
+      - if: steps.role.outputs.ok == 'true'
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.EVAL_ROLE_ARN }}
+          aws-region: eu-west-3
+
+      - if: steps.role.outputs.ok == 'true'
+        run: npm run eval:summary
+        env:
+          EVAL_MODELS: ${{ inputs.models }}
+          EVAL_RUNS: ${{ inputs.runs || '5' }}
+
+      - if: steps.role.outputs.ok == 'true'
+        run: cat "apps/food/eval/results/summary-$(date -u +%F).md" >> "$GITHUB_STEP_SUMMARY"
+      - if: steps.role.outputs.ok == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: summary-eval
+          path: apps/food/eval/results/
