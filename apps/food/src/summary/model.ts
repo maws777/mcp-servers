@@ -2,10 +2,11 @@
 // for every model on Bedrock, so which model runs is configuration (MODEL_ID,
 // MODEL_REGION), not code.
 //
-// Today: DeepSeek V3.2, on demand in Stockholm (landing-zone ADR 0015). Open
-// weights hosted by AWS in that region: the prompt stays in the EU and never
-// reaches DeepSeek. Planned: Claude Haiku 5.5 through the eu. profile, once
-// the account's quota for it isn't 0 (ADR 0014).
+// Today: Qwen3 235B, on demand in Stockholm, chosen by the summary eval
+// (apps/food/eval, landing-zone ADR 0017; DeepSeek V3.2 before it, ADR 0015).
+// Open weights hosted by AWS in that region: the prompt stays in the EU and
+// never reaches the model's publisher. Claude Haiku 5.5 gets evaluated once
+// the account's quota for it isn't 0.
 //
 // Structured output: one tool, `write_summary`, whose input schema is the
 // answer, and toolChoice forcing it. The tool is never executed; it only

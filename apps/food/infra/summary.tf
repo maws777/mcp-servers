@@ -1,6 +1,6 @@
 # AI summaries (docs/design/food-dashboard.md, phase 4b):
 #
-#   dashboard Lambda --async invoke--> summary Lambda --> Bedrock (DeepSeek V3.2, Stockholm)
+#   dashboard Lambda --async invoke--> summary Lambda --> Bedrock (Qwen3 235B, Stockholm)
 #   23:30 Europe/Paris schedule -----^       |
 #                                            +--> summaries table (its own, written only here)
 #
@@ -11,11 +11,12 @@
 locals {
   summary_name = "${local.name}-summary"
 
-  # The model, called on demand in its own region (landing-zone ADR 0015):
-  # DeepSeek V3.2 in Stockholm while Claude Haiku 5.5's quota is 0 in this
-  # account. Changing it means changing these two values, and the workload
-  # boundary must list the model (landing-zone modules/workload-ci).
-  model_id     = "deepseek.v3.2"
+  # The model, called on demand in its own region: Qwen3 235B in Stockholm,
+  # chosen by the summary eval (apps/food/eval, landing-zone ADR 0017).
+  # Changing it means changing these two values, and the workload boundary
+  # must list the model (landing-zone modules/workload-ci). DeepSeek V3.2
+  # (ADR 0015, "deepseek.v3.2") is still listed there: the way back.
+  model_id     = "qwen.qwen3-235b-a22b-2507-v1:0"
   model_region = "eu-north-1"
 }
 
