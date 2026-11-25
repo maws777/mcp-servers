@@ -11,9 +11,11 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "vitest run --project unit",
     "test:store": "vitest run --project store",
+    "eval:summary": "vitest run --project eval",
     "build": "npm run build --workspaces --if-present"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
     "@types/aws-lambda": "^8.10.164",
     "@types/node": "^22.20.5",
     "esbuild": "0.28.2",

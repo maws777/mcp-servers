@@ -142,7 +142,7 @@ export function registerJournalTools(server: McpServer, ctx: ToolContext) {
       description: "Correct a logged entry. items, when given, replace the whole list; totals are recomputed.",
       inputSchema: z.object({
         entry_id: entryId,
-        description: z.string().trim().min(1).max(200).optional(),
+        description: z.string().trim().min(1).max(200).optional().describe("New short label for the meal; omit to keep it"),
         items: items.optional(),
         eaten_at: eatenAt.optional(),
         meal: meal.optional(),
