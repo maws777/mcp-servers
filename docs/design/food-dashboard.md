@@ -159,7 +159,10 @@ page opens ─► GET /api/summary?date=        (dashboard Lambda)
   Claude Haiku 5.5's quota is 0 in the account (support case open), so the
   summaries run on **DeepSeek V3.2, on demand in `eu-north-1`** (AWS-hosted
   open weights, EU), landing-zone ADR 0015. Converse works for both, so
-  going back to Haiku is a configuration change.* Prompt asks for
+  going back to Haiku is a configuration change.* *Changed 2026-11-25: **Qwen3
+  235B, same region**, chosen by the summary eval (`apps/food/eval`): no
+  safety failure in 125 runs, a third of DeepSeek's price, landing-zone
+  ADR 0017.* Prompt asks for
   `resume` ≤ 400 characters, `conseil` ≤ 200, `note` ≤ 100; code accepts
   450 / 250 / 120, drops a too long tip or note, and refuses a too long
   summary (the previous one stays). Control and invisible characters
